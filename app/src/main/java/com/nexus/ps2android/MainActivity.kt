@@ -1,15 +1,11 @@
-
 package com.nexus.ps2android
 
-import android.app.Activity
 import android.os.Bundle
 import android.view.Gravity
 import android.widget.*
-import android.content.Intent
 import android.net.Uri
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.ComponentActivity
-
+import androidx.activity.result.contract.ActivityResultContracts
 class MainActivity : ComponentActivity() {
 
     private var binUri: Uri? = null

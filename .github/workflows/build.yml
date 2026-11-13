@@ -32,6 +32,23 @@ jobs:
         run: |
           sdkmanager "platforms;android-35" "build-tools;35.0.0" "ndk;27.0.12077973" "cmake;3.22.1"
 
+      - name: Check AndroidManifest XML
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import xml.etree.ElementTree as ET
+
+          p = Path("app/src/main/AndroidManifest.xml")
+          data = p.read_bytes()
+          print("FIRST 200 BYTES:", repr(data[:200]))
+          try:
+              ET.fromstring(data)
+              print("MANIFEST XML VALID")
+          except ET.ParseError as e:
+              print("MANIFEST XML ERROR:", e)
+              raise
+          PY
+          
       - name: Build APK
         run: gradle --no-daemon --stacktrace :app:assembleDebug
 

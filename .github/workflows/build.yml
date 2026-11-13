@@ -13,8 +13,27 @@ jobs:
     steps:
       - name: Checkout Nexus Project
         uses: actions/checkout@v4
-        with:
-          submodules: recursive
+
+      - name: Download ARMSX2 Source
+        run: |
+          git clone --depth 1 --recurse-submodules \
+            https://github.com/ARMSX2/ARMSX2.git \
+            external/ARMSX2
+
+      - name: Verify ARMSX2 Source
+        run: |
+          if [ ! -d "external/ARMSX2" ]; then
+            echo "ERROR: ARMSX2 source not found"
+            exit 1
+          fi
+
+          if [ ! -f "external/ARMSX2/platforms/android/README.md" ]; then
+            echo "ERROR: Android build documentation not found"
+            exit 1
+          fi
+
+          echo "ARMSX2 SOURCE FOUND"
+          echo "ANDROID BUILD DOCUMENTATION FOUND"
 
       - name: Setup Java
         uses: actions/setup-java@v4
@@ -36,20 +55,6 @@ jobs:
             "build-tools;35.0.0" \
             "ndk;27.0.12077973" \
             "cmake;3.22.1"
-
-      - name: Verify ARMSX2 Source
-        run: |
-          if [ ! -d "external/ARMSX2" ]; then
-            echo "ERROR: ARMSX2 source not found"
-            exit 1
-          fi
-
-          if [ ! -f "external/ARMSX2/platforms/android/README.md" ]; then
-            echo "ERROR: Android source documentation not found"
-            exit 1
-          fi
-
-          echo "ARMSX2 source successfully checked"
 
       - name: Check Android Manifest
         run: |
@@ -79,3 +84,4 @@ jobs:
         with:
           name: ARMSX2-Source
           path: external/ARMSX2/
+          

@@ -3,9 +3,10 @@ package com.nexus.ps2android
 
 import android.os.Bundle
 import android.view.Gravity
-import android.widget.*
+import android.content.Intent
 import android.net.Uri
 import android.provider.OpenableColumns
+import android.widget.*
 import androidx.activity.ComponentActivity
 import androidx.activity.result.contract.ActivityResultContracts
 
@@ -18,10 +19,16 @@ class MainActivity : ComponentActivity() {
     private lateinit var cueStatus: TextView
     private lateinit var gameStatus: TextView
 
+    private val prefs by lazy {
+        getSharedPreferences("nexus_game_files", MODE_PRIVATE)
+    }
+
     private val binPicker =
         registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
             uri?.let {
                 binUri = it
+                keepFileAccess(it)
+                saveGameFiles()
                 binStatus.text = "BIN: ${getFileName(it)}"
                 checkGameFiles()
             }
@@ -31,6 +38,8 @@ class MainActivity : ComponentActivity() {
         registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
             uri?.let {
                 cueUri = it
+                keepFileAccess(it)
+                saveGameFiles()
                 cueStatus.text = "CUE: ${getFileName(it)}"
                 checkGameFiles()
             }
@@ -65,7 +74,7 @@ class MainActivity : ComponentActivity() {
         }
 
         val title = makeText("NEXUS PS2 ANDROID", 26f)
-        val subtitle = makeText("GAME FILE CHECKER 0.3", 16f)
+        val subtitle = makeText("GAME FILE MANAGER 0.4", 16f)
 
         binStatus = makeText("BIN: Belum dipilih", 14f)
         cueStatus = makeText("CUE: Belum dipilih", 14f)
@@ -104,16 +113,65 @@ class MainActivity : ComponentActivity() {
         layout.addView(gameStatus)
         layout.addView(engine)
 
+        restoreGameFiles()
+
         setContentView(layout)
+    }
+
+    private fun keepFileAccess(uri: Uri) {
+        try {
+            contentResolver.takePersistableUriPermission(
+                uri,
+                Intent.FLAG_GRANT_READ_URI_PERMISSION
+            )
+        } catch (e: SecurityException) {
+            gameStatus.text =
+                "Peringatan: Akses file tidak dapat disimpan permanen."
+        }
+    }
+
+    private fun saveGameFiles() {
+        prefs.edit()
+            .putString("bin_uri", binUri?.toString())
+            .putString("cue_uri", cueUri?.toString())
+            .apply()
+    }
+
+    private fun restoreGameFiles() {
+        val savedBin = prefs.getString("bin_uri", null)
+        val savedCue = prefs.getString("cue_uri", null)
+
+        binUri = savedBin?.let { Uri.parse(it) }
+        cueUri = savedCue?.let { Uri.parse(it) }
+
+        binStatus.text = binUri?.let {
+            "BIN: ${getFileName(it)}"
+        } ?: "BIN: Belum dipilih"
+
+        cueStatus.text = cueUri?.let {
+            "CUE: ${getFileName(it)}"
+        } ?: "CUE: Belum dipilih"
+
+        checkGameFiles()
     }
 
     private fun getFileName(uri: Uri): String {
         var name = uri.lastPathSegment ?: "File dipilih"
 
-        contentResolver.query(uri, null, null, null, null)?.use {
-            if (it.moveToFirst()) {
-                val index = it.getColumnIndex(OpenableColumns.DISPLAY_NAME)
-                if (index >= 0) name = it.getString(index)
+        contentResolver.query(
+            uri,
+            null,
+            null,
+            null,
+            null
+        )?.use { cursor ->
+            if (cursor.moveToFirst()) {
+                val index =
+                    cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+
+                if (index >= 0) {
+                    name = cursor.getString(index) ?: name
+                }
             }
         }
 
@@ -121,11 +179,12 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun checkGameFiles() {
-        gameStatus.text = if (binUri != null && cueUri != null) {
-            "BIN dan CUE sudah dipilih!\nTekan PERIKSA FILE GAME."
-        } else {
-            "Silakan pilih kedua file game."
-        }
+        gameStatus.text =
+            if (binUri != null && cueUri != null) {
+                "BIN dan CUE tersimpan!\nTekan PERIKSA FILE GAME."
+            } else {
+                "Silakan pilih kedua file game."
+            }
     }
 
     private fun validateGameFiles() {
@@ -133,17 +192,20 @@ class MainActivity : ComponentActivity() {
         val cue = cueUri
 
         if (bin == null || cue == null) {
-            gameStatus.text = "ERROR: Pilih BIN dan CUE terlebih dahulu."
+            gameStatus.text =
+                "ERROR: Pilih BIN dan CUE terlebih dahulu."
             return
         }
 
         try {
-            val cueContent = contentResolver.openInputStream(cue)
-                ?.bufferedReader()
-                ?.use { it.readText() }
-                ?: throw Exception("File CUE tidak dapat dibaca")
+            val cueContent =
+                contentResolver.openInputStream(cue)
+                    ?.bufferedReader()
+                    ?.use { it.readText() }
+                    ?: throw Exception("File CUE tidak dapat dibaca")
 
             val binName = getFileName(bin)
+
             val cueBinName = Regex(
                 """FILE\s+"([^"]+)"""",
                 RegexOption.IGNORE_CASE
@@ -151,26 +213,27 @@ class MainActivity : ComponentActivity() {
 
             if (cueBinName == null) {
                 gameStatus.text = "ERROR: Format CUE tidak valid."
-            } else if (!cueBinName.equals(binName, ignoreCase = true)) {
-                gameStatus.text =
-                    "FILE TIDAK COCOK!\nCUE: $cueBinName\nBIN: $binName"
-            } else {
-                val stream = contentResolver.openInputStream(bin)
-                    ?: throw Exception("File BIN tidak dapat dibaca")
-
-                stream.use {
-                    val firstByte = it.read()
-                    if (firstByte == -1) {
-                        throw Exception("File BIN kosong")
-                    }
-                }
-
-                gameStatus.text =
-                    "FILE BERHASIL DIPERIKSA!\nBIN dan CUE cocok.\nSiap untuk tahap berikutnya."
+                return
             }
 
+            if (!cueBinName.equals(binName, ignoreCase = true)) {
+                gameStatus.text =
+                    "FILE TIDAK COCOK!\nCUE: $cueBinName\nBIN: $binName"
+                return
+            }
+
+            contentResolver.openInputStream(bin)?.use {
+                if (it.read() == -1) {
+                    throw Exception("File BIN kosong")
+                }
+            } ?: throw Exception("File BIN tidak dapat dibaca")
+
+            gameStatus.text =
+                "FILE BERHASIL DIPERIKSA!\nBIN dan CUE cocok.\nAkses file berhasil."
+
         } catch (e: Exception) {
-            gameStatus.text = "PEMERIKSAAN GAGAL:\n${e.message}"
+            gameStatus.text =
+                "PEMERIKSAAN GAGAL:\n${e.message}"
         }
     }
 }

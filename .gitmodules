@@ -1,0 +1,3 @@
+[submodule "ARMSX2"]
+    path = external/ARMSX2
+    url = https://github.com/ARMSX2/ARMSX2.git

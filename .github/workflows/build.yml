@@ -29,9 +29,9 @@ jobs:
         uses: android-actions/setup-android@v4
 
       - name: Install Android components
-          run: |
-            sdkmanager "platforms;android-35" "build-tools;35.0.0" "ndk;27.0.12077973" "cmake;3.22.1"
-            
+        run: |
+          sdkmanager "platforms;android-35" "build-tools;35.0.0" "ndk;27.0.12077973" "cmake;3.22.1"
+
       - name: Check AndroidManifest XML
         run: |
           python3 - <<'PY'
@@ -40,13 +40,10 @@ jobs:
 
           p = Path("app/src/main/AndroidManifest.xml")
           data = p.read_bytes()
-
-          # Hapus baris kosong dan spasi sebelum XML
           data = data.lstrip(b" \t\r\n")
           p.write_bytes(data)
 
           print("FIRST 200 BYTES:", repr(data[:200]))
-
           ET.fromstring(data)
           print("MANIFEST XML VALID")
           PY
@@ -59,3 +56,4 @@ jobs:
         with:
           name: Nexus-PS2-Android-APK
           path: app/build/outputs/apk/debug/app-debug.apk
+          

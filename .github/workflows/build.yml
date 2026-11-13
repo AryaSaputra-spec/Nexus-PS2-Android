@@ -29,9 +29,9 @@ jobs:
         uses: android-actions/setup-android@v4
 
       - name: Install Android components
-        run: |
-          sdkmanager "platforms;android-35" "build-tools;35.0.0" "ndk;27.0.12077973" "cmake;3.22.
-
+          run: |
+            sdkmanager "platforms;android-35" "build-tools;35.0.0" "ndk;27.0.12077973" "cmake;3.22.1"
+            
       - name: Check AndroidManifest XML
         run: |
           python3 - <<'PY'

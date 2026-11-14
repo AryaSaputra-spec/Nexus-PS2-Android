@@ -4,8 +4,11 @@ name: Build Nexus PS2 Android
 on:
   push:
     branches:
-      - integration/armsx2-base
+      - main
   workflow_dispatch:
+
+permissions:
+  contents: read
 
 jobs:
   build:
@@ -43,6 +46,7 @@ jobs:
           test -f external/ARMSX2/platforms/android/app/build.gradle.kts
           test -f external/ARMSX2/platforms/android/app/src/main/cpp/CMakeLists.txt
           echo "ARMSX2 SOURCE VERIFIED"
+          git -C external/ARMSX2 rev-parse --short HEAD
 
       - name: Build ARMSX2 Android Base
         working-directory: external/ARMSX2/platforms/android
@@ -58,3 +62,4 @@ jobs:
         with:
           name: Nexus-PS2-Android-Base
           path: external/ARMSX2/platforms/android/app/build/outputs/apk/github/debug/*.apk
+          

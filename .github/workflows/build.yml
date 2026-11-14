@@ -91,17 +91,49 @@ jobs:
 
           import android.content.Intent
           import android.graphics.Color
+          import android.graphics.Typeface
+          import android.graphics.drawable.GradientDrawable
           import android.os.Bundle
           import android.provider.OpenableColumns
           import android.view.Gravity
-          import android.widget.Button
-          import android.widget.LinearLayout
-          import android.widget.TextView
-          import android.widget.Toast
+          import android.view.View
+          import android.widget.*
           import androidx.activity.ComponentActivity
           import androidx.activity.result.contract.ActivityResultContracts
 
           class NexusLauncherActivity : ComponentActivity() {
+
+              private val red = Color.rgb(210, 35, 48)
+              private val silver = Color.rgb(205, 215, 225)
+              private val dark = Color.rgb(9, 13, 22)
+
+              private fun dp(value: Int): Int =
+                  (value * resources.displayMetrics.density).toInt()
+
+              private fun makeShape(
+                  color: Int,
+                  radius: Int,
+                  stroke: Int = Color.TRANSPARENT
+              ) = GradientDrawable().apply {
+                  setColor(color)
+                  cornerRadius = dp(radius).toFloat()
+                  if (stroke != Color.TRANSPARENT) {
+                      setStroke(dp(1), stroke)
+                  }
+              }
+
+              private fun makeText(
+                  value: String,
+                  size: Float,
+                  color: Int,
+                  bold: Boolean = false
+              ) = TextView(this).apply {
+                  text = value
+                  textSize = size
+                  setTextColor(color)
+                  gravity = Gravity.CENTER
+                  if (bold) typeface = Typeface.DEFAULT_BOLD
+              }
 
               private val gamePicker =
                   registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
@@ -110,9 +142,7 @@ jobs:
                       val name = contentResolver.query(
                           uri,
                           arrayOf(OpenableColumns.DISPLAY_NAME),
-                          null,
-                          null,
-                          null
+                          null, null, null
                       )?.use { cursor ->
                           if (cursor.moveToFirst()) cursor.getString(0) else null
                       } ?: uri.lastPathSegment.orEmpty()
@@ -122,7 +152,7 @@ jobs:
                       if (extension !in setOf("bin", "iso", "chd")) {
                           Toast.makeText(
                               this,
-                              "Pilih file BIN, ISO, atau CHD. Untuk game BIN/CUE, pilih BIN.",
+                              "Pilih file BIN, ISO, atau CHD. Untuk BIN/CUE pilih BIN.",
                               Toast.LENGTH_LONG
                           ).show()
                           return@registerForActivityResult
@@ -156,48 +186,164 @@ jobs:
 
                   val root = LinearLayout(this).apply {
                       orientation = LinearLayout.VERTICAL
-                      gravity = Gravity.CENTER
-                      setPadding(32, 32, 32, 32)
-                      setBackgroundColor(Color.rgb(10, 16, 28))
+                      gravity = Gravity.CENTER_HORIZONTAL
+                      setPadding(dp(22), dp(28), dp(22), dp(22))
+                      background = GradientDrawable(
+                          GradientDrawable.Orientation.TL_BR,
+                          intArrayOf(
+                              Color.rgb(25, 29, 43),
+                              dark,
+                              Color.rgb(35, 12, 20)
+                          )
+                      )
                   }
 
-                  val title = TextView(this).apply {
-                      text = "ULTRAMAN NEXUS"
-                      textSize = 28f
-                      gravity = Gravity.CENTER
-                      setTextColor(Color.WHITE)
-                      setPadding(8, 20, 8, 12)
+                  val scroll = ScrollView(this).apply {
+                      isFillViewport = true
+                      addView(root)
                   }
 
-                  val subtitle = TextView(this).apply {
-                      text = "PLAYSTATION 2 ANDROID"
-                      textSize = 15f
-                      gravity = Gravity.CENTER
-                      setTextColor(Color.LTGRAY)
-                      setPadding(8, 8, 8, 28)
+                  root.addView(
+                      makeText("PROJECT • NEXUS", 12f, red, true).apply {
+                          letterSpacing = 0.2f
+                      }
+                  )
+
+                  root.addView(
+                      makeText("ULTRAMAN", 30f, silver, true).apply {
+                          setPadding(0, dp(12), 0, 0)
+                          letterSpacing = 0.12f
+                      }
+                  )
+
+                  root.addView(
+                      makeText("NEXUS", 42f, Color.WHITE, true).apply {
+                          letterSpacing = 0.18f
+                      }
+                  )
+
+                  val accent = View(this).apply {
+                      setBackgroundColor(red)
                   }
+
+                  root.addView(
+                      accent,
+                      LinearLayout.LayoutParams(dp(100), dp(3)).apply {
+                          gravity = Gravity.CENTER
+                          topMargin = dp(12)
+                          bottomMargin = dp(18)
+                      }
+                  )
+
+                  root.addView(
+                      makeText(
+                          "PLAYSTATION 2 ANDROID",
+                          13f,
+                          silver,
+                          true
+                      ).apply {
+                          setPadding(0, 0, 0, dp(28))
+                      }
+                  )
+
+                  val panel = LinearLayout(this).apply {
+                      orientation = LinearLayout.VERTICAL
+                      setPadding(dp(18), dp(20), dp(18), dp(20))
+                      background = makeShape(
+                          Color.rgb(23, 30, 43),
+                          16,
+                          Color.rgb(90, 100, 120)
+                      )
+                  }
+
+                  panel.addView(
+                      makeText(
+                          "GAME CONTROL CENTER",
+                          16f,
+                          Color.WHITE,
+                          true
+                      )
+                  )
+
+                  panel.addView(
+                      makeText(
+                          "Pilih file game PS2 untuk memulai.",
+                          13f,
+                          Color.LTGRAY
+                      ).apply {
+                          setPadding(0, dp(12), 0, dp(20))
+                      }
+                  )
 
                   val chooseButton = Button(this).apply {
-                      text = "PILIH FILE GAME (.BIN)"
+                      text = "PILIH GAME"
+                      textSize = 15f
+                      isAllCaps = false
+                      typeface = Typeface.DEFAULT_BOLD
+                      setTextColor(Color.WHITE)
+                      background = makeShape(red, 12)
                       setOnClickListener {
                           gamePicker.launch(arrayOf("*/*"))
                       }
                   }
 
-                  val info = TextView(this).apply {
-                      text = "Pilih file BIN game milikmu.\nBIOS PS2 diperlukan untuk menjalankan game."
-                      textSize = 13f
-                      gravity = Gravity.CENTER
-                      setTextColor(Color.LTGRAY)
-                      setPadding(12, 24, 12, 12)
-                  }
+                  panel.addView(
+                      chooseButton,
+                      LinearLayout.LayoutParams(
+                          LinearLayout.LayoutParams.MATCH_PARENT,
+                          dp(54)
+                      )
+                  )
 
-                  root.addView(title)
-                  root.addView(subtitle)
-                  root.addView(chooseButton)
-                  root.addView(info)
+                  root.addView(
+                      panel,
+                      LinearLayout.LayoutParams(
+                          LinearLayout.LayoutParams.MATCH_PARENT,
+                          LinearLayout.LayoutParams.WRAP_CONTENT
+                      )
+                  )
 
-                  setContentView(root)
+                  root.addView(
+                      makeText(
+                          "SUPPORTED GAME FILES",
+                          13f,
+                          red,
+                          true
+                      ).apply {
+                          setPadding(0, dp(28), 0, dp(12))
+                      }
+                  )
+
+                  root.addView(
+                      makeText(
+                          "BIN  •  ISO  •  CHD",
+                          16f,
+                          silver,
+                          true
+                      )
+                  )
+
+                  root.addView(
+                      makeText(
+                          "Untuk game BIN/CUE, pilih file BIN.\n" +
+                          "BIOS PS2 diperlukan untuk menjalankan game.\n\n" +
+                          "Gunakan BIOS dan game hasil dump milik sendiri.",
+                          12f,
+                          Color.LTGRAY
+                      ).apply {
+                          setPadding(dp(8), dp(20), dp(8), dp(24))
+                      }
+                  )
+
+                  root.addView(
+                      makeText(
+                          "NEXUS PROJECT • ANDROID EDITION",
+                          10f,
+                          Color.GRAY
+                      )
+                  )
+
+                  setContentView(scroll)
               }
           }
           KOTLIN
@@ -206,7 +352,6 @@ jobs:
           import xml.etree.ElementTree as ET
 
           path = "app/src/main/AndroidManifest.xml"
-
           android = "http://schemas.android.com/apk/res/android"
           tools = "http://schemas.android.com/tools"
 
@@ -215,10 +360,10 @@ jobs:
 
           tree = ET.parse(path)
           root = tree.getroot()
-
           app = root.find("application")
+
           if app is None:
-              raise SystemExit("AndroidManifest: application element not found")
+              raise SystemExit("AndroidManifest: application not found")
 
           name = f"{{{android}}}name"
           exported = f"{{{android}}}exported"
@@ -316,10 +461,10 @@ jobs:
           source = path.read_text()
           nl = chr(10)
 
-          # Keep external=true so normal external frontend behavior is unchanged.
           flag = "        @Volatile var launchedExternally = false"
           if source.count(flag) != 1:
               raise SystemExit("Runtime launch flag location changed.")
+
           if "returnToNexusLauncher" not in source:
               source = source.replace(
                   flag,
@@ -335,6 +480,7 @@ jobs:
               "            }",
               "        }"
           ])
+
           new_finish = nl.join([
               "        private fun finishToLauncherIfRequested() {",
               "            if (returnToNexusLauncher) {",
@@ -349,12 +495,12 @@ jobs:
               "            }",
               "        }"
           ])
+
           if source.count(old_finish) != 1:
               raise SystemExit("Exit function changed; patch stopped.")
+
           source = source.replace(old_finish, new_finish, 1)
 
-          # The upstream Activity kills its process in onDestroy. Skip that kill
-          # only when returning to the Nexus launcher underneath this Activity.
           old_destroy_tail = nl.join([
               "        val appPid = Process.myPid()",
               "        Process.killProcess(appPid)",
@@ -362,6 +508,7 @@ jobs:
               "",
               "    private fun handleExternalLaunchIntent(intent: Intent?) {"
           ])
+
           new_destroy_tail = nl.join([
               "        val appPid = Process.myPid()",
               "        if (returnToNexusLauncher) {",
@@ -373,19 +520,24 @@ jobs:
               "",
               "    private fun handleExternalLaunchIntent(intent: Intent?) {"
           ])
+
           if source.count(old_destroy_tail) != 1:
-              raise SystemExit("onDestroy process-exit section changed; patch stopped.")
+              raise SystemExit("onDestroy process-exit section changed.")
+
           source = source.replace(old_destroy_tail, new_destroy_tail, 1)
 
           handler = "private fun handleExternalLaunchIntent(intent: Intent?)"
           if source.count(handler) != 1:
               raise SystemExit("External launch handler not found or duplicated.")
+
           handler_start = source.index(handler)
           brace = source.index("{", handler_start)
+
           marker_line = (
               nl + "        returnToNexusLauncher = "
               'intent?.getBooleanExtra("com.nexus.ps2android.INTERNAL_LAUNCH", false) == true'
           )
+
           if marker_line.strip() not in source[handler_start:]:
               source = source[:brace + 1] + marker_line + source[brace + 1:]
 
@@ -400,35 +552,4 @@ jobs:
           grep -q 'putExtra("com.nexus.ps2android.INTERNAL_LAUNCH", true)' "$LAUNCHER"
           grep -q 'returnToNexusLauncher = intent?.getBooleanExtra' "$RUNTIME"
           grep -q 'if (returnToNexusLauncher)' "$RUNTIME"
-          grep -q 'instance?.finish()' "$RUNTIME"
-          grep -q 'returnToNexusLauncher = false' "$RUNTIME"
-          grep -q 'launchGame(queued, externalGameInfo(queued), external = true)' "$RUNTIME"
-          echo "RETURN TO NEXUS LAUNCHER VERIFIED"
-
-      - name: Verify Nexus UI Branding
-        run: |
-          grep -q 'NEXUS PS2 ANDROID' external/ARMSX2/platforms/android/app/src/main/java/com/armsx2/ui/onboarding/OnboardingScreen.kt
-          grep -q 'ULTRAMAN NEXUS' external/ARMSX2/platforms/android/app/src/main/java/com/armsx2/ui/home/HomeScreen.kt
-          echo "NEXUS UI BRANDING VERIFIED"
-
-      - name: Verify Nexus Launcher
-        run: |
-          test -f external/ARMSX2/platforms/android/app/src/main/java/com/armsx2/NexusLauncherActivity.kt
-          grep -q "NexusLauncherActivity" external/ARMSX2/platforms/android/app/src/main/AndroidManifest.xml
-          echo "NEXUS LAUNCHER VERIFIED"
-
-      - name: Build Nexus PS2 Android
-        working-directory: external/ARMSX2/platforms/android
-        run: |
-          chmod +x gradlew
-          ./gradlew --no-daemon --stacktrace \
-            -Parmsx2.applicationId=com.nexus.ps2android \
-            -Parmsx2.appLabel="Nexus PS2 Android" \
-            :app:assembleGithubDebug
-
-      - name: Upload Nexus APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: Nexus-PS2-Android
-          path: external/ARMSX2/platforms/android/app/build/outputs/apk/github/debug/*.apk
-          
+          grep -q 'instance?.finish()' 

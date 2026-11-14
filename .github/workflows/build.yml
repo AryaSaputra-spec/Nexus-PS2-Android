@@ -304,6 +304,28 @@ jobs:
           print("NEXUS UI BRANDING PATCHED")
           PY
 
+      - name: Fix Exit Game Behavior
+        working-directory: external/ARMSX2/platforms/android
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path(
+              "app/src/main/java/com/armsx2/runtime/MainActivityRuntime.kt"
+          )
+
+          source = path.read_text()
+
+          old = "launchGame(queued, externalGameInfo(queued), external = true)"
+          new = "launchGame(queued, externalGameInfo(queued), external = false)"
+
+          if source.count(old) != 1:
+              raise SystemExit("Exit behavior source changed; patch stopped.")
+
+          path.write_text(source.replace(old, new, 1))
+          print("NEXUS EXIT BEHAVIOR PATCHED")
+          PY
+
       - name: Verify Nexus UI Branding
         run: |
           grep -q 'NEXUS PS2 ANDROID' external/ARMSX2/platforms/android/app/src/main/java/com/armsx2/ui/onboarding/OnboardingScreen.kt
@@ -315,6 +337,11 @@ jobs:
           test -f external/ARMSX2/platforms/android/app/src/main/java/com/armsx2/NexusLauncherActivity.kt
           grep -q "NexusLauncherActivity" external/ARMSX2/platforms/android/app/src/main/AndroidManifest.xml
           echo "NEXUS LAUNCHER VERIFIED"
+
+      - name: Verify Exit Game Behavior
+        run: |
+          grep -q 'launchGame(queued, externalGameInfo(queued), external = false)' external/ARMSX2/platforms/android/app/src/main/java/com/armsx2/runtime/MainActivityRuntime.kt
+          echo "NEXUS EXIT BEHAVIOR VERIFIED"
 
       - name: Build Nexus PS2 Android
         working-directory: external/ARMSX2/platforms/android

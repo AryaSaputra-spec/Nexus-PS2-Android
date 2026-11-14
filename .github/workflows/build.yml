@@ -4,7 +4,7 @@ name: Build Nexus PS2 Android
 on:
   push:
     branches:
-      - main
+      - integration/armsx2-base
   workflow_dispatch:
 
 jobs:
@@ -21,23 +21,16 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      # Gradle disiapkan sebelum source ARMSX2 diunduh
-      - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v4
-        with:
-          gradle-version: '8.9'
-
       - name: Setup Android SDK
         uses: android-actions/setup-android@v4
 
       - name: Install Android Components
         run: |
-          sdkmanager "platforms;android-35" \
-            "build-tools;35.0.0" \
-            "ndk;27.0.12077973" \
-            "cmake;3.22.1"
+          sdkmanager "platforms;android-37" \
+            "build-tools;37.0.0" \
+            "ndk;29.0.14206865" \
+            "cmake;3.31.6"
 
-      # Unduh source emulator setelah Gradle siap
       - name: Download ARMSX2 Source
         run: |
           git clone --depth 1 --recurse-submodules \
@@ -46,34 +39,23 @@ jobs:
 
       - name: Verify ARMSX2 Source
         run: |
-          test -d external/ARMSX2
-          test -d external/ARMSX2/platforms/android
-          echo "ARMSX2 SOURCE FOUND"
-          git -C external/ARMSX2 rev-parse --short HEAD
-          find external/ARMSX2/platforms/android \
-            -maxdepth 2 -type f | head -50
+          test -f external/ARMSX2/platforms/android/gradlew
+          test -f external/ARMSX2/platforms/android/app/build.gradle.kts
+          test -f external/ARMSX2/platforms/android/app/src/main/cpp/CMakeLists.txt
+          echo "ARMSX2 SOURCE VERIFIED"
 
-      - name: Check AndroidManifest XML
+      - name: Build ARMSX2 Android Base
+        working-directory: external/ARMSX2/platforms/android
         run: |
-          python3 - <<'PY'
-          from pathlib import Path
-          import xml.etree.ElementTree as ET
-
-          p = Path("app/src/main/AndroidManifest.xml")
-          data = p.read_bytes().lstrip(b" \t\r\n")
-          p.write_bytes(data)
-
-          ET.fromstring(data)
-          print("MANIFEST XML VALID")
-          PY
-
-      - name: Build Nexus APK
-        run: |
-          gradle --no-daemon --stacktrace :app:assembleDebug
+          chmod +x gradlew
+          ./gradlew --no-daemon --stacktrace \
+            -Parmsx2.applicationId=com.nexus.ps2android \
+            -Parmsx2.appLabel="Nexus PS2 Android" \
+            :app:assembleGithubDebug
 
       - name: Upload Nexus APK
         uses: actions/upload-artifact@v4
         with:
-          name: Nexus-PS2-Android-APK
-          path: app/build/outputs/apk/debug/app-debug.apk
+          name: Nexus-PS2-Android-Base
+          path: external/ARMSX2/platforms/android/app/build/outputs/apk/github/debug/*.apk
           

@@ -125,7 +125,7 @@ jobs:
                       if (extension !in setOf("bin", "iso", "chd")) {
                           Toast.makeText(
                               this,
-                              "Pilih file BIN, ISO, atau CHD. Untuk BIN/CUE, pilih file BIN.",
+                              "Pilih file BIN, ISO, atau CHD. Untuk BIN/CUE, pilih BIN.",
                               Toast.LENGTH_LONG
                           ).show()
                           return@registerForActivityResult
@@ -138,10 +138,7 @@ jobs:
                           )
                       }
 
-                      val launch = Intent(
-                          this,
-                          BootSplashActivity::class.java
-                      ).apply {
+                      val launch = Intent(this, BootSplashActivity::class.java).apply {
                           action = Intent.ACTION_VIEW
                           data = uri
                           putExtra("com.nexus.ps2android.INTERNAL_LAUNCH", true)
@@ -157,45 +154,36 @@ jobs:
               private fun dp(value: Int): Int =
                   (value * resources.displayMetrics.density).toInt()
 
-              private fun makeBackground(
-                  startColor: Int,
-                  endColor: Int,
+              private fun panel(
+                  start: Int,
+                  end: Int,
                   radius: Int,
-                  strokeColor: Int = Color.TRANSPARENT
-              ): GradientDrawable {
-                  return GradientDrawable(
-                      GradientDrawable.Orientation.TOP_BOTTOM,
-                      intArrayOf(startColor, endColor)
-                  ).apply {
-                      cornerRadius = dp(radius).toFloat()
-                      if (strokeColor != Color.TRANSPARENT) {
-                          setStroke(dp(1), strokeColor)
-                      }
-                  }
+                  stroke: Int = Color.TRANSPARENT
+              ) = GradientDrawable(
+                  GradientDrawable.Orientation.TOP_BOTTOM,
+                  intArrayOf(start, end)
+              ).apply {
+                  cornerRadius = dp(radius).toFloat()
+                  if (stroke != Color.TRANSPARENT) setStroke(dp(1), stroke)
               }
 
-              private fun makeText(
+              private fun text(
                   value: String,
                   size: Float,
                   color: Int,
                   bold: Boolean = false,
-                  alignment: Int = Gravity.CENTER
-              ): TextView {
-                  return TextView(this).apply {
-                      text = value
-                      textSize = size
-                      setTextColor(color)
-                      gravity = alignment
-                      if (bold) {
-                          typeface = Typeface.create(
-                              "sans-serif",
-                              Typeface.BOLD
-                          )
-                      }
+                  gravityValue: Int = Gravity.CENTER
+              ) = TextView(this).apply {
+                  text = value
+                  textSize = size
+                  setTextColor(color)
+                  gravity = gravityValue
+                  if (bold) {
+                      typeface = Typeface.create("sans-serif", Typeface.BOLD)
                   }
               }
 
-              private fun addSpace(parent: LinearLayout, height: Int) {
+              private fun space(parent: LinearLayout, height: Int) {
                   parent.addView(
                       View(this),
                       LinearLayout.LayoutParams(
@@ -220,37 +208,25 @@ jobs:
                       orientation = LinearLayout.VERTICAL
                       gravity = Gravity.CENTER_HORIZONTAL
                       setPadding(dp(24), dp(28), dp(24), dp(24))
-                      background = makeBackground(
+                      background = panel(
                           Color.rgb(17, 19, 27),
                           Color.rgb(4, 5, 9),
                           0
                       )
                   }
 
-                  val topLabel = makeText(
-                      "T.L.T.  //  NEXUS SYSTEM",
-                      11f,
-                      Color.rgb(190, 195, 205),
-                      true
-                  )
-
                   root.addView(
-                      topLabel,
+                      text("T.L.T.  //  NEXUS SYSTEM", 11f,
+                          Color.rgb(190, 195, 205), true),
                       LinearLayout.LayoutParams(
-                          LinearLayout.LayoutParams.MATCH_PARENT,
-                          dp(30)
+                          LinearLayout.LayoutParams.MATCH_PARENT, dp(30)
                       )
                   )
 
-                  addSpace(root, 30)
+                  space(root, 30)
 
-                  val emblem = makeText(
-                      "N",
-                      76f,
-                      Color.WHITE,
-                      true
-                  ).apply {
-                      background = makeBackground(
+                  val emblem = text("N", 76f, Color.WHITE, true).apply {
+                      background = panel(
                           Color.rgb(150, 12, 30),
                           Color.rgb(35, 5, 12),
                           100,
@@ -265,66 +241,44 @@ jobs:
                       }
                   )
 
-                  addSpace(root, 25)
-
-                  val title = makeText(
-                      "ULTRAMAN NEXUS",
-                      27f,
-                      Color.WHITE,
-                      true
-                  )
+                  space(root, 25)
 
                   root.addView(
-                      title,
+                      text("ULTRAMAN NEXUS", 27f, Color.WHITE, true),
                       LinearLayout.LayoutParams(
                           LinearLayout.LayoutParams.MATCH_PARENT,
                           LinearLayout.LayoutParams.WRAP_CONTENT
                       )
                   )
 
-                  addSpace(root, 8)
-
-                  val subtitle = makeText(
-                      "PLAYSTATION 2  //  ANDROID EDITION",
-                      11f,
-                      Color.rgb(190, 195, 205),
-                      true
-                  )
+                  space(root, 8)
 
                   root.addView(
-                      subtitle,
+                      text("PLAYSTATION 2  //  ANDROID EDITION",
+                          11f, Color.rgb(190, 195, 205), true),
                       LinearLayout.LayoutParams(
                           LinearLayout.LayoutParams.MATCH_PARENT,
                           LinearLayout.LayoutParams.WRAP_CONTENT
                       )
                   )
 
-                  addSpace(root, 38)
-
-                  val section = makeText(
-                      "SYSTEM READY",
-                      12f,
-                      Color.rgb(230, 55, 75),
-                      true
-                  )
+                  space(root, 38)
 
                   root.addView(
-                      section,
+                      text("SYSTEM READY", 12f,
+                          Color.rgb(230, 55, 75), true),
                       LinearLayout.LayoutParams(
                           LinearLayout.LayoutParams.MATCH_PARENT,
                           LinearLayout.LayoutParams.WRAP_CONTENT
                       )
                   )
 
-                  addSpace(root, 15)
+                  space(root, 15)
 
-                  val playButton = makeText(
-                      "▶   PLAY GAME",
-                      18f,
-                      Color.WHITE,
-                      true
+                  val playButton = text(
+                      "▶   PLAY GAME", 18f, Color.WHITE, true
                   ).apply {
-                      background = makeBackground(
+                      background = panel(
                           Color.rgb(190, 20, 42),
                           Color.rgb(95, 5, 20),
                           16,
@@ -346,12 +300,12 @@ jobs:
                       )
                   )
 
-                  addSpace(root, 25)
+                  space(root, 25)
 
                   val gamePanel = LinearLayout(this).apply {
                       orientation = LinearLayout.VERTICAL
                       setPadding(dp(18), dp(17), dp(18), dp(17))
-                      background = makeBackground(
+                      background = panel(
                           Color.rgb(29, 31, 41),
                           Color.rgb(14, 15, 22),
                           14,
@@ -360,19 +314,13 @@ jobs:
                   }
 
                   gamePanel.addView(
-                      makeText(
-                          "GAME LIBRARY",
-                          13f,
-                          Color.WHITE,
-                          true,
-                          Gravity.START
-                      )
+                      text("GAME LIBRARY", 13f, Color.WHITE, true, Gravity.START)
                   )
 
-                  addSpace(gamePanel, 8)
+                  space(gamePanel, 8)
 
                   gamePanel.addView(
-                      makeText(
+                      text(
                           "Pilih file game PS2 milikmu untuk memulai permainan.",
                           12f,
                           Color.rgb(185, 190, 200),
@@ -389,12 +337,12 @@ jobs:
                       )
                   )
 
-                  addSpace(root, 16)
+                  space(root, 16)
 
                   val biosPanel = LinearLayout(this).apply {
                       orientation = LinearLayout.VERTICAL
                       setPadding(dp(18), dp(15), dp(18), dp(15))
-                      background = makeBackground(
+                      background = panel(
                           Color.rgb(25, 26, 33),
                           Color.rgb(12, 13, 18),
                           14,
@@ -403,19 +351,14 @@ jobs:
                   }
 
                   biosPanel.addView(
-                      makeText(
-                          "BIOS INFORMATION",
-                          12f,
-                          Color.rgb(220, 220, 230),
-                          true,
-                          Gravity.START
-                      )
+                      text("BIOS INFORMATION", 12f,
+                          Color.rgb(220, 220, 230), true, Gravity.START)
                   )
 
-                  addSpace(biosPanel, 7)
+                  space(biosPanel, 7)
 
                   biosPanel.addView(
-                      makeText(
+                      text(
                           "BIOS PS2 diperlukan agar emulator dapat menjalankan game.",
                           12f,
                           Color.rgb(175, 180, 190),
@@ -432,17 +375,15 @@ jobs:
                       )
                   )
 
-                  addSpace(root, 30)
-
-                  val footer = makeText(
-                      "NEXUS PS2 ANDROID\nPOWERED BY ARMSX2",
-                      10f,
-                      Color.rgb(115, 120, 132),
-                      true
-                  )
+                  space(root, 30)
 
                   root.addView(
-                      footer,
+                      text(
+                          "NEXUS PS2 ANDROID\nPOWERED BY ARMSX2",
+                          10f,
+                          Color.rgb(115, 120, 132),
+                          true
+                      ),
                       LinearLayout.LayoutParams(
                           LinearLayout.LayoutParams.MATCH_PARENT,
                           LinearLayout.LayoutParams.WRAP_CONTENT
@@ -462,13 +403,12 @@ jobs:
           android = "http://schemas.android.com/apk/res/android"
 
           ET.register_namespace("android", android)
-
           tree = ET.parse(path)
           root = tree.getroot()
 
           app = root.find("application")
           if app is None:
-              raise SystemExit("AndroidManifest: application element not found")
+              raise SystemExit("AndroidManifest: application not found")
 
           name = f"{{{android}}}name"
           exported = f"{{{android}}}exported"
@@ -566,14 +506,55 @@ jobs:
 
           source = path.read_text()
 
-          # Add a process-level flag.
-          flag_anchor = (
-              "private const val LIGHT_NAVIGATION_BAR_SCRIM = 0x04000000\n"
+          class_anchor = (
+              "open class MainActivityRuntime : ComponentActivity() {\n"
           )
 
-          if source.count(flag_anchor) != 1:
-              raise SystemExit("Runtime constants insertion point not found.")
+          if "private var returnToNexusLauncher" not in source:
+              if source.count(class_anchor) != 1:
+                  raise SystemExit("MainActivityRuntime class anchor not found.")
 
-          if "returnToNexusLauncher" not in source:
               source = source.replace(
-                  flag_ancho
+                  class_anchor,
+                  class_anchor
+                  + "    private var returnToNexusLauncher = false\n",
+                  1
+              )
+
+          launch_anchor = (
+              "    private fun handleExternalLaunchIntent(intent: Intent?) {\n"
+              "        val raw = extractLaunchUri(intent) ?: return\n"
+          )
+
+          launch_replacement = (
+              "    private fun handleExternalLaunchIntent(intent: Intent?) {\n"
+              "        returnToNexusLauncher = "
+              "intent?.getBooleanExtra("
+              '"com.nexus.ps2android.INTERNAL_LAUNCH", false'
+              ") == true\n"
+              "        val raw = extractLaunchUri(intent) ?: return\n"
+          )
+
+          if launch_anchor in source:
+              source = source.replace(
+                  launch_anchor,
+                  launch_replacement,
+                  1
+              )
+          elif launch_replacement not in source:
+              raise SystemExit("Game launch handler anchor not found.")
+
+          destroy_anchor = (
+              "        runCatching { "
+              "com.armsx2.bugreport.BugReport.clearCrashMarker() }\n"
+              "        super.onDestroy()\n"
+          )
+
+          destroy_replacement = (
+              "        runCatching { "
+              "com.armsx2.bugreport.BugReport.clearCrashMarker() }\n"
+              "        if (returnToNexusLauncher) {\n"
+              "            returnToNexusLauncher = false\n"
+              "            startActivity(\n"
+              "                Intent(this, "
+              "com.armsx2.NexusLaunch

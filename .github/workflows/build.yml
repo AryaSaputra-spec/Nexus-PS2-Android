@@ -355,51 +355,61 @@ jobs:
           s = runtime.read_text()
 
           old_flag = "        @Volatile var launchedExternally = false"
-          new_flag = """        @Volatile var launchedExternally = false
-          // Return to the Nexus launcher after a game launched from it stops.
-          @Volatile var returnToNexusLauncher = false"""
 
           if s.count(old_flag) != 1:
               raise SystemExit("Runtime launch flag location changed.")
 
-          s = s.replace(old_flag, new_flag, 1)
+          if "returnToNexusLauncher" not in s:
+              s = s.replace(
+                  old_flag,
+                  old_flag + "\n        @Volatile var returnToNexusLauncher = false",
+                  1
+              )
 
           new_finish = """        private fun finishToLauncherIfRequested() {
-              if (quitAfterStop) {
-                  quitAfterStop = false
-                  instance?.runOnUiThread { instance?.finishAndRemoveTask() }
-                  return
-              }
+            if (quitAfterStop) {
+                quitAfterStop = false
+                instance?.runOnUiThread { instance?.finishAndRemoveTask() }
+                return
+            }
 
-              if (returnToNexusLauncher) {
-                  returnToNexusLauncher = false
-                  instance?.runOnUiThread { instance?.finish() }
-              }
-          }"""
+            if (returnToNexusLauncher) {
+                returnToNexusLauncher = false
+                instance?.runOnUiThread { instance?.finish() }
+            }
+        }"""
 
           pattern = (
               r"(?ms)^        private fun finishToLauncherIfRequested\(\) \{\n"
               r".*?^        \}"
           )
 
-          s, count = re.subn(pattern, new_finish, s, count=1)
+          s, count = re.subn(
+              pattern,
+              lambda match: new_finish,
+              s,
+              count=1
+          )
 
           if count != 1:
               raise SystemExit("Could not locate runtime exit function.")
 
-          old_handler = """    private fun handleExternalLaunchIntent(intent: Intent?) {
-              val raw = extractLaunchUri(intent) ?: return"""
+          handler = "private fun handleExternalLaunchIntent(intent: Intent?)"
 
-          new_handler = """    private fun handleExternalLaunchIntent(intent: Intent?) {
-              returnToNexusLauncher =
-                  intent?.getBooleanExtra("com.nexus.ps2android.INTERNAL_LAUNCH", false) == true
+          if handler not in s:
+              raise SystemExit("External launch handler not found.")
 
-              val raw = extractLaunchUri(intent) ?: return"""
+          start = s.index(handler)
+          brace = s.index("{", start)
 
-          if s.count(old_handler) != 1:
-              raise SystemExit("External launch handler changed.")
+          marker_line = (
+              '\n        returnToNexusLauncher = '
+              'intent?.getBooleanExtra("com.nexus.ps2android.INTERNAL_LAUNCH", false) == true'
+          )
 
-          s = s.replace(old_handler, new_handler, 1)
+          if marker_line.strip() not in s[start:]:
+              s = s[:brace + 1] + marker_line + s[brace + 1:]
+
           runtime.write_text(s)
 
           print("RETURN TO NEXUS LAUNCHER PATCHED")

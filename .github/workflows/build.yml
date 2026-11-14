@@ -5,6 +5,7 @@ on:
   push:
     branches:
       - main
+      - integration/armsx2-base
   workflow_dispatch:
 
 jobs:
@@ -21,7 +22,6 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      # Gradle disiapkan sebelum source ARMSX2 diunduh
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
@@ -37,7 +37,6 @@ jobs:
             "ndk;27.0.12077973" \
             "cmake;3.22.1"
 
-      # Unduh source emulator setelah Gradle siap
       - name: Download ARMSX2 Source
         run: |
           git clone --depth 1 --recurse-submodules \
@@ -46,12 +45,11 @@ jobs:
 
       - name: Verify ARMSX2 Source
         run: |
-          test -d external/ARMSX2
           test -d external/ARMSX2/platforms/android
-          echo "ARMSX2 SOURCE FOUND"
+          test -f external/ARMSX2/platforms/android/app/build.gradle.kts
+          test -f external/ARMSX2/platforms/android/app/src/main/cpp/CMakeLists.txt
+          echo "ARMSX2 ANDROID SOURCE VERIFIED"
           git -C external/ARMSX2 rev-parse --short HEAD
-          find external/ARMSX2/platforms/android \
-            -maxdepth 2 -type f | head -50
 
       - name: Check AndroidManifest XML
         run: |

@@ -304,7 +304,7 @@ jobs:
           print("NEXUS UI BRANDING PATCHED")
           PY
 
-      - name: Fix Exit Game Behavior
+      - name: Patch Return to Nexus Launcher After Exit
         working-directory: external/ARMSX2/platforms/android
         run: |
           python3 - <<'PY'
@@ -313,107 +313,97 @@ jobs:
           path = Path(
               "app/src/main/java/com/armsx2/runtime/MainActivityRuntime.kt"
           )
-
           source = path.read_text()
+          nl = chr(10)
 
-          old = "launchGame(queued, externalGameInfo(queued), external = true)"
-          new = "launchGame(queued, externalGameInfo(queued), external = false)"
-
-          if source.count(old) != 1:
-              raise SystemExit("Exit behavior source changed; patch stopped.")
-
-          path.write_text(source.replace(old, new, 1))
-          print("NEXUS EXIT BEHAVIOR PATCHED")
-          PY
-
-      - name: Return to Nexus Launcher After Exit
-        working-directory: external/ARMSX2/platforms/android
-        run: |
-          python3 - <<'PY'
-          from pathlib import Path
-          import re
-
-          launcher = Path(
-              "app/src/main/java/com/armsx2/NexusLauncherActivity.kt"
-          )
-          runtime = Path(
-              "app/src/main/java/com/armsx2/runtime/MainActivityRuntime.kt"
-          )
-
-          a = launcher.read_text()
-          marker = 'putExtra("com.nexus.ps2android.INTERNAL_LAUNCH", true)'
-
-          if a.count(marker) != 1:
-              raise SystemExit("Nexus launch marker missing or duplicated.")
-
-          if a.count("startActivity(launch)") != 1:
-              raise SystemExit("Launcher startActivity missing or duplicated.")
-
-          if "finish()" in a:
-              raise SystemExit("Launcher must remain alive.")
-
-          s = runtime.read_text()
-
-          old_flag = "        @Volatile var launchedExternally = false"
-
-          if s.count(old_flag) != 1:
+          # Keep external=true so normal external frontend behavior is unchanged.
+          flag = "        @Volatile var launchedExternally = false"
+          if source.count(flag) != 1:
               raise SystemExit("Runtime launch flag location changed.")
-
-          if "returnToNexusLauncher" not in s:
-              s = s.replace(
-                  old_flag,
-                  old_flag + "\n        @Volatile var returnToNexusLauncher = false",
+          if "returnToNexusLauncher" not in source:
+              source = source.replace(
+                  flag,
+                  flag + nl + "        @Volatile var returnToNexusLauncher = false",
                   1
               )
 
-          new_finish = """        private fun finishToLauncherIfRequested() {
-            if (quitAfterStop) {
-                quitAfterStop = false
-                instance?.runOnUiThread { instance?.finishAndRemoveTask() }
-                return
-            }
+          old_finish = nl.join([
+              "        private fun finishToLauncherIfRequested() {",
+              "            if (quitAfterStop) {",
+              "                quitAfterStop = false",
+              "                instance?.runOnUiThread { instance?.finishAndRemoveTask() }",
+              "            }",
+              "        }"
+          ])
+          new_finish = nl.join([
+              "        private fun finishToLauncherIfRequested() {",
+              "            if (returnToNexusLauncher) {",
+              "                quitAfterStop = false",
+              "                instance?.runOnUiThread { instance?.finish() }",
+              "                return",
+              "            }",
+              "",
+              "            if (quitAfterStop) {",
+              "                quitAfterStop = false",
+              "                instance?.runOnUiThread { instance?.finishAndRemoveTask() }",
+              "            }",
+              "        }"
+          ])
+          if source.count(old_finish) != 1:
+              raise SystemExit("Exit function changed; patch stopped.")
+          source = source.replace(old_finish, new_finish, 1)
 
-            if (returnToNexusLauncher) {
-                returnToNexusLauncher = false
-                instance?.runOnUiThread { instance?.finish() }
-            }
-        }"""
-
-          pattern = (
-              r"(?ms)^        private fun finishToLauncherIfRequested\(\) \{\n"
-              r".*?^        \}"
-          )
-
-          s, count = re.subn(
-              pattern,
-              lambda match: new_finish,
-              s,
-              count=1
-          )
-
-          if count != 1:
-              raise SystemExit("Could not locate runtime exit function.")
+          # The upstream Activity kills its process in onDestroy. Skip that kill
+          # only when returning to the Nexus launcher underneath this Activity.
+          old_destroy_tail = nl.join([
+              "        val appPid = Process.myPid()",
+              "        Process.killProcess(appPid)",
+              "    }",
+              "",
+              "    private fun handleExternalLaunchIntent(intent: Intent?) {"
+          ])
+          new_destroy_tail = nl.join([
+              "        val appPid = Process.myPid()",
+              "        if (returnToNexusLauncher) {",
+              "            returnToNexusLauncher = false",
+              "            return",
+              "        }",
+              "        Process.killProcess(appPid)",
+              "    }",
+              "",
+              "    private fun handleExternalLaunchIntent(intent: Intent?) {"
+          ])
+          if source.count(old_destroy_tail) != 1:
+              raise SystemExit("onDestroy process-exit section changed; patch stopped.")
+          source = source.replace(old_destroy_tail, new_destroy_tail, 1)
 
           handler = "private fun handleExternalLaunchIntent(intent: Intent?)"
-
-          if handler not in s:
-              raise SystemExit("External launch handler not found.")
-
-          start = s.index(handler)
-          brace = s.index("{", start)
-
+          if source.count(handler) != 1:
+              raise SystemExit("External launch handler not found or duplicated.")
+          handler_start = source.index(handler)
+          brace = source.index("{", handler_start)
           marker_line = (
-              '\n        returnToNexusLauncher = '
+              nl + "        returnToNexusLauncher = "
               'intent?.getBooleanExtra("com.nexus.ps2android.INTERNAL_LAUNCH", false) == true'
           )
+          if marker_line.strip() not in source[handler_start:]:
+              source = source[:brace + 1] + marker_line + source[brace + 1:]
 
-          if marker_line.strip() not in s[start:]:
-              s = s[:brace + 1] + marker_line + s[brace + 1:]
-
-          runtime.write_text(s)
-
-          print("RETURN TO NEXUS LAUNCHER PATCHED")
+          path.write_text(source)
+          print("NEXUS RETURN-TO-LAUNCHER PATCH APPLIED")
           PY
+
+      - name: Verify Return to Nexus Launcher
+        run: |
+          RUNTIME="external/ARMSX2/platforms/android/app/src/main/java/com/armsx2/runtime/MainActivityRuntime.kt"
+          LAUNCHER="external/ARMSX2/platforms/android/app/src/main/java/com/armsx2/NexusLauncherActivity.kt"
+          grep -q 'putExtra("com.nexus.ps2android.INTERNAL_LAUNCH", true)' "$LAUNCHER"
+          grep -q 'returnToNexusLauncher = intent?.getBooleanExtra' "$RUNTIME"
+          grep -q 'if (returnToNexusLauncher)' "$RUNTIME"
+          grep -q 'instance?.finish()' "$RUNTIME"
+          grep -q 'returnToNexusLauncher = false' "$RUNTIME"
+          grep -q 'launchGame(queued, externalGameInfo(queued), external = true)' "$RUNTIME"
+          echo "RETURN TO NEXUS LAUNCHER VERIFIED"
 
       - name: Verify Nexus UI Branding
         run: |
@@ -426,18 +416,6 @@ jobs:
           test -f external/ARMSX2/platforms/android/app/src/main/java/com/armsx2/NexusLauncherActivity.kt
           grep -q "NexusLauncherActivity" external/ARMSX2/platforms/android/app/src/main/AndroidManifest.xml
           echo "NEXUS LAUNCHER VERIFIED"
-
-      - name: Verify Exit Game Behavior
-        run: |
-          grep -q 'launchGame(queued, externalGameInfo(queued), external = false)' external/ARMSX2/platforms/android/app/src/main/java/com/armsx2/runtime/MainActivityRuntime.kt
-          echo "NEXUS EXIT BEHAVIOR VERIFIED"
-
-      - name: Verify Return to Nexus Launcher
-        run: |
-          grep -q 'INTERNAL_LAUNCH' external/ARMSX2/platforms/android/app/src/main/java/com/armsx2/NexusLauncherActivity.kt
-          grep -q 'returnToNexusLauncher' external/ARMSX2/platforms/android/app/src/main/java/com/armsx2/runtime/MainActivityRuntime.kt
-          grep -q 'instance?.finish()' external/ARMSX2/platforms/android/app/src/main/java/com/armsx2/runtime/MainActivityRuntime.kt
-          echo "RETURN TO NEXUS LAUNCHER VERIFIED"
 
       - name: Build Nexus PS2 Android
         working-directory: external/ARMSX2/platforms/android

@@ -47,6 +47,20 @@ jobs:
             https://github.com/ARMSX2/ARMSX2.git \
             external/ARMSX2
 
+      - name: Download Shaderc Dependencies
+        working-directory: external/ARMSX2/platforms/android/app/src/main/cpp/3rdparty/shaderc
+        run: |
+          python3 utils/git-sync-deps
+
+      - name: Verify Native Dependencies
+        working-directory: external/ARMSX2/platforms/android/app/src/main/cpp/3rdparty/shaderc
+        run: |
+          test -f third_party/spirv-tools/CMakeLists.txt
+          test -f third_party/spirv-headers/CMakeLists.txt
+          test -f third_party/glslang/CMakeLists.txt
+          test -f third_party/effcee/CMakeLists.txt
+          echo "SHADERC DEPENDENCIES VERIFIED"
+
       - name: Verify ARMSX2 Source
         run: |
           test -f external/ARMSX2/platforms/android/gradlew

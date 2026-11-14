@@ -1,4 +1,331 @@
 
+name: Build Nexus PS2 Android
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Nexus Project
+        uses: actions/checkout@v4
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v4
+
+      - name: Install Android Components
+        run: |
+          sdkmanager "platforms;android-37.0" \
+            "build-tools;37.0.0" \
+            "ndk;29.0.14206865" \
+            "cmake;3.31.6"
+
+      - name: Fix Android 37 Platform Path
+        run: |
+          SDK_ROOT="${ANDROID_HOME:-$ANDROID_SDK_ROOT}"
+          mkdir -p "$SDK_ROOT/platforms"
+          ln -sfn android-37.0 "$SDK_ROOT/platforms/android-37"
+          ls -la "$SDK_ROOT/platforms"
+
+      - name: Download ARMSX2 Source
+        run: |
+          git clone --depth 1 --recurse-submodules \
+            https://github.com/ARMSX2/ARMSX2.git \
+            external/ARMSX2
+
+      - name: Download Shaderc Dependencies
+        working-directory: external/ARMSX2/platforms/android/app/src/main/cpp/3rdparty/shaderc
+        run: |
+          python3 utils/git-sync-deps
+
+      - name: Verify Native Dependencies
+        working-directory: external/ARMSX2/platforms/android/app/src/main/cpp/3rdparty/shaderc
+        run: |
+          test -f third_party/spirv-tools/CMakeLists.txt
+          test -f third_party/spirv-headers/CMakeLists.txt
+          test -f third_party/glslang/CMakeLists.txt
+          test -f third_party/effcee/CMakeLists.txt
+          echo "SHADERC DEPENDENCIES VERIFIED"
+
+      - name: Verify ARMSX2 Source
+        run: |
+          test -f external/ARMSX2/platforms/android/gradlew
+          test -f external/ARMSX2/platforms/android/app/build.gradle.kts
+          test -f external/ARMSX2/platforms/android/app/src/main/cpp/CMakeLists.txt
+          echo "ARMSX2 SOURCE VERIFIED"
+          git -C external/ARMSX2 rev-parse --short HEAD
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android
+
+      - name: Verify Rust Android Target
+        run: |
+          rustc --version
+          cargo --version
+          rustup target list --installed
+          rustup target list --installed | grep -q "aarch64-linux-android"
+
+      - name: Install Nexus Launcher
+        working-directory: external/ARMSX2/platforms/android
+        run: |
+          mkdir -p app/src/main/java/com/armsx2
+
+          cat > app/src/main/java/com/armsx2/NexusLauncherActivity.kt <<'KOTLIN'
+          package com.armsx2
+
+          import android.content.Intent
+          import android.graphics.Color
+          import android.os.Bundle
+          import android.provider.OpenableColumns
+          import android.view.Gravity
+          import android.widget.Button
+          import android.widget.LinearLayout
+          import android.widget.TextView
+          import android.widget.Toast
+          import androidx.activity.ComponentActivity
+          import androidx.activity.result.contract.ActivityResultContracts
+
+          class NexusLauncherActivity : ComponentActivity() {
+
+              private val gamePicker =
+                  registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+                      if (uri == null) return@registerForActivityResult
+
+                      val name = contentResolver.query(
+                          uri,
+                          arrayOf(OpenableColumns.DISPLAY_NAME),
+                          null,
+                          null,
+                          null
+                      )?.use { cursor ->
+                          if (cursor.moveToFirst()) cursor.getString(0) else null
+                      } ?: uri.lastPathSegment.orEmpty()
+
+                      val extension = name.substringAfterLast('.', "").lowercase()
+
+                      if (extension !in setOf("bin", "iso", "chd")) {
+                          Toast.makeText(
+                              this,
+                              "Pilih file BIN, ISO, atau CHD. Untuk game BIN/CUE, pilih BIN.",
+                              Toast.LENGTH_LONG
+                          ).show()
+                          return@registerForActivityResult
+                      }
+
+                      runCatching {
+                          contentResolver.takePersistableUriPermission(
+                              uri,
+                              Intent.FLAG_GRANT_READ_URI_PERMISSION
+                          )
+                      }
+
+                      val launch = Intent(
+                          this,
+                          BootSplashActivity::class.java
+                      ).apply {
+                          action = Intent.ACTION_VIEW
+                          data = uri
+                          putExtra("com.nexus.ps2android.INTERNAL_LAUNCH", true)
+                          addFlags(
+                              Intent.FLAG_GRANT_READ_URI_PERMISSION or
+                              Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION
+                          )
+                      }
+
+                      startActivity(launch)
+                  }
+
+              override fun onCreate(savedInstanceState: Bundle?) {
+                  super.onCreate(savedInstanceState)
+
+                  val root = LinearLayout(this).apply {
+                      orientation = LinearLayout.VERTICAL
+                      gravity = Gravity.CENTER
+                      setPadding(32, 32, 32, 32)
+                      setBackgroundColor(Color.rgb(10, 16, 28))
+                  }
+
+                  val title = TextView(this).apply {
+                      text = "ULTRAMAN NEXUS"
+                      textSize = 28f
+                      gravity = Gravity.CENTER
+                      setTextColor(Color.WHITE)
+                      setPadding(8, 20, 8, 12)
+                  }
+
+                  val subtitle = TextView(this).apply {
+                      text = "PLAYSTATION 2 ANDROID"
+                      textSize = 15f
+                      gravity = Gravity.CENTER
+                      setTextColor(Color.LTGRAY)
+                      setPadding(8, 8, 8, 28)
+                  }
+
+                  val chooseButton = Button(this).apply {
+                      text = "PILIH FILE GAME (.BIN)"
+                      setOnClickListener {
+                          gamePicker.launch(arrayOf("*/*"))
+                      }
+                  }
+
+                  val info = TextView(this).apply {
+                      text = "Pilih file BIN game milikmu.\nBIOS PS2 diperlukan untuk menjalankan game."
+                      textSize = 13f
+                      gravity = Gravity.CENTER
+                      setTextColor(Color.LTGRAY)
+                      setPadding(12, 24, 12, 12)
+                  }
+
+                  root.addView(title)
+                  root.addView(subtitle)
+                  root.addView(chooseButton)
+                  root.addView(info)
+
+                  setContentView(root)
+              }
+          }
+          KOTLIN
+
+          python3 - <<'PY'
+          import xml.etree.ElementTree as ET
+
+          path = "app/src/main/AndroidManifest.xml"
+
+          android = "http://schemas.android.com/apk/res/android"
+          tools = "http://schemas.android.com/tools"
+
+          ET.register_namespace("android", android)
+          ET.register_namespace("tools", tools)
+
+          tree = ET.parse(path)
+          root = tree.getroot()
+
+          app = root.find("application")
+          if app is None:
+              raise SystemExit("AndroidManifest: application element not found")
+
+          name = f"{{{android}}}name"
+          exported = f"{{{android}}}exported"
+          theme = f"{{{android}}}theme"
+
+          splash = None
+          for activity in app.findall("activity"):
+              if activity.get(name) == ".BootSplashActivity":
+                  splash = activity
+                  break
+
+          if splash is None:
+              raise SystemExit("BootSplashActivity not found")
+
+          for intent_filter in list(splash.findall("intent-filter")):
+              actions = [
+                  item.get(name)
+                  for item in intent_filter.findall("action")
+              ]
+              if "android.intent.action.MAIN" in actions:
+                  splash.remove(intent_filter)
+
+          for activity in list(app.findall("activity")):
+              if activity.get(name) == ".NexusLauncherActivity":
+                  app.remove(activity)
+
+          launcher = ET.SubElement(app, "activity")
+          launcher.set(name, ".NexusLauncherActivity")
+          launcher.set(exported, "true")
+          launcher.set(theme, "@style/Theme.ARMSX2")
+
+          intent_filter = ET.SubElement(launcher, "intent-filter")
+          ET.SubElement(intent_filter, "action").set(
+              name, "android.intent.action.MAIN"
+          )
+          ET.SubElement(intent_filter, "category").set(
+              name, "android.intent.category.LAUNCHER"
+          )
+          ET.SubElement(intent_filter, "category").set(
+              name, "android.intent.category.GAME"
+          )
+
+          tree.write(path, encoding="utf-8", xml_declaration=True)
+          print("NEXUS LAUNCHER MANIFEST INSTALLED")
+          PY
+
+      - name: Apply Nexus UI Branding
+        working-directory: external/ARMSX2/platforms/android
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          onboarding = Path(
+              "app/src/main/java/com/armsx2/ui/onboarding/OnboardingScreen.kt"
+          )
+          home = Path(
+              "app/src/main/java/com/armsx2/ui/home/HomeScreen.kt"
+          )
+
+          a = onboarding.read_text()
+          old_logo = "                        ArmsLogo()"
+          new_logo = """                        Text(
+                              text = "NEXUS PS2 ANDROID",
+                              style = MaterialTheme.typography.titleLarge,
+                              fontWeight = FontWeight.Bold,
+                              color = MaterialTheme.colorScheme.onBackground,
+                          )"""
+
+          if a.count(old_logo) != 1:
+              raise SystemExit("Onboarding source changed; patch stopped.")
+
+          onboarding.write_text(a.replace(old_logo, new_logo, 1))
+
+          h = home.read_text()
+          old_title = '                    title = str("games.section.library"),'
+          new_title = '                    title = "ULTRAMAN NEXUS",'
+
+          if h.count(old_title) != 1:
+              raise SystemExit("Home source changed; patch stopped.")
+
+          home.write_text(h.replace(old_title, new_title, 1))
+
+          print("NEXUS UI BRANDING PATCHED")
+          PY
+
+      - name: Fix Exit Game Behavior
+        working-directory: external/ARMSX2/platforms/android
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path(
+              "app/src/main/java/com/armsx2/runtime/MainActivityRuntime.kt"
+          )
+
+          source = path.read_text()
+
+          old = "launchGame(queued, externalGameInfo(queued), external = true)"
+          new = "launchGame(queued, externalGameInfo(queued), external = false)"
+
+          if source.count(old) != 1:
+              raise SystemExit("Exit behavior source changed; patch stopped.")
+
+          path.write_text(source.replace(old, new, 1))
+          print("NEXUS EXIT BEHAVIOR PATCHED")
+          PY
+
       - name: Return to Nexus Launcher After Exit
         working-directory: external/ARMSX2/platforms/android
         run: |
@@ -77,4 +404,43 @@
 
           print("RETURN TO NEXUS LAUNCHER PATCHED")
           PY
+
+      - name: Verify Nexus UI Branding
+        run: |
+          grep -q 'NEXUS PS2 ANDROID' external/ARMSX2/platforms/android/app/src/main/java/com/armsx2/ui/onboarding/OnboardingScreen.kt
+          grep -q 'ULTRAMAN NEXUS' external/ARMSX2/platforms/android/app/src/main/java/com/armsx2/ui/home/HomeScreen.kt
+          echo "NEXUS UI BRANDING VERIFIED"
+
+      - name: Verify Nexus Launcher
+        run: |
+          test -f external/ARMSX2/platforms/android/app/src/main/java/com/armsx2/NexusLauncherActivity.kt
+          grep -q "NexusLauncherActivity" external/ARMSX2/platforms/android/app/src/main/AndroidManifest.xml
+          echo "NEXUS LAUNCHER VERIFIED"
+
+      - name: Verify Exit Game Behavior
+        run: |
+          grep -q 'launchGame(queued, externalGameInfo(queued), external = false)' external/ARMSX2/platforms/android/app/src/main/java/com/armsx2/runtime/MainActivityRuntime.kt
+          echo "NEXUS EXIT BEHAVIOR VERIFIED"
+
+      - name: Verify Return to Nexus Launcher
+        run: |
+          grep -q 'INTERNAL_LAUNCH' external/ARMSX2/platforms/android/app/src/main/java/com/armsx2/NexusLauncherActivity.kt
+          grep -q 'returnToNexusLauncher' external/ARMSX2/platforms/android/app/src/main/java/com/armsx2/runtime/MainActivityRuntime.kt
+          grep -q 'instance?.finish()' external/ARMSX2/platforms/android/app/src/main/java/com/armsx2/runtime/MainActivityRuntime.kt
+          echo "RETURN TO NEXUS LAUNCHER VERIFIED"
+
+      - name: Build Nexus PS2 Android
+        working-directory: external/ARMSX2/platforms/android
+        run: |
+          chmod +x gradlew
+          ./gradlew --no-daemon --stacktrace \
+            -Parmsx2.applicationId=com.nexus.ps2android \
+            -Parmsx2.appLabel="Nexus PS2 Android" \
+            :app:assembleGithubDebug
+
+      - name: Upload Nexus APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: Nexus-PS2-Android
+          path: external/ARMSX2/platforms/android/app/build/outputs/apk/github/debug/*.apk
           

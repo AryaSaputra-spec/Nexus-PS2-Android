@@ -461,10 +461,8 @@ jobs:
           path = "app/src/main/AndroidManifest.xml"
 
           android = "http://schemas.android.com/apk/res/android"
-          tools = "http://schemas.android.com/tools"
 
           ET.register_namespace("android", android)
-          ET.register_namespace("tools", tools)
 
           tree = ET.parse(path)
           root = tree.getroot()
@@ -566,13 +564,14 @@ jobs:
           path = Path(
               "app/src/main/java/com/armsx2/runtime/MainActivityRuntime.kt"
           )
-          source = path.read_text()
-          nl = chr(10)
 
-          flag = "        @Volatile var launchedExternally = false"
-          if source.count(flag) != 1:
-              raise SystemExit("Runtime launch flag location changed.")
+          source = path.read_text()
+
+          flag_anchor = "private const val LIGHT_NAVIGATION_BAR_SCRIM"
+          if source.count(flag_anchor) != 1:
+              raise SystemExit("Runtime constants insertion point not found.")
 
           if "returnToNexusLauncher" not in source:
               source = source.replace(
-   
+                  flag_anchor,
+                  "@Volatile private var returnToNexusLauncher = false\n\n" + 

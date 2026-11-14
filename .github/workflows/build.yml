@@ -459,7 +459,6 @@ jobs:
           import xml.etree.ElementTree as ET
 
           path = "app/src/main/AndroidManifest.xml"
-
           android = "http://schemas.android.com/apk/res/android"
 
           ET.register_namespace("android", android)
@@ -567,11 +566,14 @@ jobs:
 
           source = path.read_text()
 
-          flag_anchor = "private const val LIGHT_NAVIGATION_BAR_SCRIM"
+          # Add a process-level flag.
+          flag_anchor = (
+              "private const val LIGHT_NAVIGATION_BAR_SCRIM = 0x04000000\n"
+          )
+
           if source.count(flag_anchor) != 1:
               raise SystemExit("Runtime constants insertion point not found.")
 
           if "returnToNexusLauncher" not in source:
               source = source.replace(
-                  flag_anchor,
-                  "@Volatile private var returnToNexusLauncher = false\n\n" + 
+                  flag_ancho

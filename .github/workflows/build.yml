@@ -69,6 +69,18 @@ jobs:
           echo "ARMSX2 SOURCE VERIFIED"
           git -C external/ARMSX2 rev-parse --short HEAD
 
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android
+
+      - name: Verify Rust Android Target
+        run: |
+          rustc --version
+          cargo --version
+          rustup target list --installed
+          rustup target list --installed | grep -q "aarch64-linux-android"
+
       - name: Build ARMSX2 Android Base
         working-directory: external/ARMSX2/platforms/android
         run: |

@@ -29,10 +29,17 @@ jobs:
 
       - name: Install Android Components
         run: |
-          sdkmanager "platforms;android-37" \
+          sdkmanager "platforms;android-37.0" \
             "build-tools;37.0.0" \
             "ndk;29.0.14206865" \
             "cmake;3.31.6"
+
+      - name: Fix Android 37 Platform Path
+        run: |
+          SDK_ROOT="${ANDROID_HOME:-$ANDROID_SDK_ROOT}"
+          mkdir -p "$SDK_ROOT/platforms"
+          ln -sfn android-37.0 "$SDK_ROOT/platforms/android-37"
+          ls -la "$SDK_ROOT/platforms"
 
       - name: Download ARMSX2 Source
         run: |

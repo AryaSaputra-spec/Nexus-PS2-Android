@@ -339,20 +339,21 @@ jobs:
               "app/src/main/java/com/armsx2/runtime/MainActivityRuntime.kt"
           )
 
-          # Keep NexusLauncherActivity alive underneath the emulator.
           a = launcher.read_text()
 
-          if "putExtra(\"com.nexus.ps2android.INTERNAL_LAUNCH\", true)" not in a:
-              raise SystemExit("Nexus launch marker is missing.")
+          marker = 'putExtra("com.nexus.ps2android.INTERNAL_LAUNCH", true)'
 
-          if a.count("startActivity(launch)\n                  }") != 1:
-              raise SystemExit("Launcher startActivity block changed; patch stopped.")
+          if a.count(marker) != 1:
+              raise SystemExit("Nexus launch marker is missing or duplicated.")
 
-          # The launcher must not finish after starting BootSplashActivity.
-          # Its activity remains underneath Main and becomes visible after Exit.
-          launcher.write_text(a)
+          if a.count("startActivity(launch)") != 1:
+              raise SystemExit("Launcher startActivity call missing or duplicated.")
 
-          # Remember that this game was opened from our own Nexus launcher.
+          # Do not finish NexusLauncherActivity after opening the emulator.
+          # It must remain underneath BootSplashActivity and Main.
+          if "finish()" in a:
+              raise SystemExit("Launcher must remain alive; unexpected finish() found.")
+
           s = runtime.read_text()
 
           old_flag = """        @Volatile var launchedExternally = false"""

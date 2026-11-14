@@ -141,6 +141,7 @@ jobs:
                       ).apply {
                           action = Intent.ACTION_VIEW
                           data = uri
+                          putExtra("com.nexus.ps2android.INTERNAL_LAUNCH", true)
                           addFlags(
                               Intent.FLAG_GRANT_READ_URI_PERMISSION or
                               Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION
@@ -148,7 +149,6 @@ jobs:
                       }
 
                       startActivity(launch)
-                      finish()
                   }
 
               override fun onCreate(savedInstanceState: Bundle?) {
@@ -326,6 +326,89 @@ jobs:
           print("NEXUS EXIT BEHAVIOR PATCHED")
           PY
 
+      - name: Return to Nexus Launcher After Exit
+        working-directory: external/ARMSX2/platforms/android
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          launcher = Path(
+              "app/src/main/java/com/armsx2/NexusLauncherActivity.kt"
+          )
+          runtime = Path(
+              "app/src/main/java/com/armsx2/runtime/MainActivityRuntime.kt"
+          )
+
+          # Keep NexusLauncherActivity alive underneath the emulator.
+          a = launcher.read_text()
+
+          if "putExtra(\"com.nexus.ps2android.INTERNAL_LAUNCH\", true)" not in a:
+              raise SystemExit("Nexus launch marker is missing.")
+
+          if a.count("startActivity(launch)\n                  }") != 1:
+              raise SystemExit("Launcher startActivity block changed; patch stopped.")
+
+          # The launcher must not finish after starting BootSplashActivity.
+          # Its activity remains underneath Main and becomes visible after Exit.
+          launcher.write_text(a)
+
+          # Remember that this game was opened from our own Nexus launcher.
+          s = runtime.read_text()
+
+          old_flag = """        @Volatile var launchedExternally = false"""
+
+          new_flag = """        @Volatile var launchedExternally = false
+          // True when the current game was opened from the Nexus launcher.
+          @Volatile var returnToNexusLauncher = false"""
+
+          if s.count(old_flag) != 1:
+              raise SystemExit("Runtime launch flag location changed; patch stopped.")
+
+          s = s.replace(old_flag, new_flag, 1)
+
+          old_finish = """        private fun finishToLauncherIfRequested() {
+              if (quitAfterStop) {
+                  quitAfterStop = false
+                  instance?.runOnUiThread { instance?.finishAndRemoveTask() }
+              }
+          }"""
+
+          new_finish = """        private fun finishToLauncherIfRequested() {
+              if (quitAfterStop) {
+                  quitAfterStop = false
+                  instance?.runOnUiThread { instance?.finishAndRemoveTask() }
+                  return
+              }
+
+              if (returnToNexusLauncher) {
+                  returnToNexusLauncher = false
+                  instance?.runOnUiThread { instance?.finish() }
+              }
+          }"""
+
+          if s.count(old_finish) != 1:
+              raise SystemExit("Runtime exit function changed; patch stopped.")
+
+          s = s.replace(old_finish, new_finish, 1)
+
+          old_handler = """    private fun handleExternalLaunchIntent(intent: Intent?) {
+          val raw = extractLaunchUri(intent) ?: return"""
+
+          new_handler = """    private fun handleExternalLaunchIntent(intent: Intent?) {
+          returnToNexusLauncher =
+              intent?.getBooleanExtra("com.nexus.ps2android.INTERNAL_LAUNCH", false) == true
+
+          val raw = extractLaunchUri(intent) ?: return"""
+
+          if s.count(old_handler) != 1:
+              raise SystemExit("External launch handler changed; patch stopped.")
+
+          s = s.replace(old_handler, new_handler, 1)
+          runtime.write_text(s)
+
+          print("RETURN TO NEXUS LAUNCHER PATCHED")
+          PY
+
       - name: Verify Nexus UI Branding
         run: |
           grep -q 'NEXUS PS2 ANDROID' external/ARMSX2/platforms/android/app/src/main/java/com/armsx2/ui/onboarding/OnboardingScreen.kt
@@ -342,6 +425,13 @@ jobs:
         run: |
           grep -q 'launchGame(queued, externalGameInfo(queued), external = false)' external/ARMSX2/platforms/android/app/src/main/java/com/armsx2/runtime/MainActivityRuntime.kt
           echo "NEXUS EXIT BEHAVIOR VERIFIED"
+
+      - name: Verify Return to Nexus Launcher
+        run: |
+          grep -q 'INTERNAL_LAUNCH' external/ARMSX2/platforms/android/app/src/main/java/com/armsx2/NexusLauncherActivity.kt
+          grep -q 'returnToNexusLauncher' external/ARMSX2/platforms/android/app/src/main/java/com/armsx2/runtime/MainActivityRuntime.kt
+          grep -q 'instance?.finish()' external/ARMSX2/platforms/android/app/src/main/java/com/armsx2/runtime/MainActivityRuntime.kt
+          echo "RETURN TO NEXUS LAUNCHER VERIFIED"
 
       - name: Build Nexus PS2 Android
         working-directory: external/ARMSX2/platforms/android

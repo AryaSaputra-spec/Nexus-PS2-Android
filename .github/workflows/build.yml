@@ -81,7 +81,197 @@ jobs:
           rustup target list --installed
           rustup target list --installed | grep -q "aarch64-linux-android"
 
-      - name: Build ARMSX2 Android Base
+      - name: Install Nexus Launcher
+        working-directory: external/ARMSX2/platforms/android
+        run: |
+          mkdir -p app/src/main/java/com/armsx2
+
+          cat > app/src/main/java/com/armsx2/NexusLauncherActivity.kt <<'KOTLIN'
+          package com.armsx2
+
+          import android.content.Intent
+          import android.graphics.Color
+          import android.os.Bundle
+          import android.provider.OpenableColumns
+          import android.view.Gravity
+          import android.widget.Button
+          import android.widget.LinearLayout
+          import android.widget.TextView
+          import android.widget.Toast
+          import androidx.activity.ComponentActivity
+          import androidx.activity.result.contract.ActivityResultContracts
+
+          class NexusLauncherActivity : ComponentActivity() {
+
+              private val gamePicker =
+                  registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+                      if (uri == null) return@registerForActivityResult
+
+                      val name = contentResolver.query(
+                          uri,
+                          arrayOf(OpenableColumns.DISPLAY_NAME),
+                          null,
+                          null,
+                          null
+                      )?.use { cursor ->
+                          if (cursor.moveToFirst()) cursor.getString(0) else null
+                      } ?: uri.lastPathSegment.orEmpty()
+
+                      val extension = name.substringAfterLast('.', "").lowercase()
+
+                      if (extension !in setOf("bin", "iso", "chd")) {
+                          Toast.makeText(
+                              this,
+                              "Pilih file BIN, ISO, atau CHD. Untuk game BIN/CUE, pilih BIN.",
+                              Toast.LENGTH_LONG
+                          ).show()
+                          return@registerForActivityResult
+                      }
+
+                      runCatching {
+                          contentResolver.takePersistableUriPermission(
+                              uri,
+                              Intent.FLAG_GRANT_READ_URI_PERMISSION
+                          )
+                      }
+
+                      val launch = Intent(
+                          this,
+                          BootSplashActivity::class.java
+                      ).apply {
+                          action = Intent.ACTION_VIEW
+                          data = uri
+                          addFlags(
+                              Intent.FLAG_GRANT_READ_URI_PERMISSION or
+                              Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION
+                          )
+                      }
+
+                      startActivity(launch)
+                      finish()
+                  }
+
+              override fun onCreate(savedInstanceState: Bundle?) {
+                  super.onCreate(savedInstanceState)
+
+                  val root = LinearLayout(this).apply {
+                      orientation = LinearLayout.VERTICAL
+                      gravity = Gravity.CENTER
+                      setPadding(32, 32, 32, 32)
+                      setBackgroundColor(Color.rgb(10, 16, 28))
+                  }
+
+                  val title = TextView(this).apply {
+                      text = "ULTRAMAN NEXUS"
+                      textSize = 28f
+                      gravity = Gravity.CENTER
+                      setTextColor(Color.WHITE)
+                      setPadding(8, 20, 8, 12)
+                  }
+
+                  val subtitle = TextView(this).apply {
+                      text = "PLAYSTATION 2 ANDROID"
+                      textSize = 15f
+                      gravity = Gravity.CENTER
+                      setTextColor(Color.LTGRAY)
+                      setPadding(8, 8, 8, 28)
+                  }
+
+                  val chooseButton = Button(this).apply {
+                      text = "PILIH FILE GAME (.BIN)"
+                      setOnClickListener {
+                          gamePicker.launch(arrayOf("*/*"))
+                      }
+                  }
+
+                  val info = TextView(this).apply {
+                      text = "Pilih file BIN game milikmu.\\nBIOS PS2 diperlukan untuk menjalankan game."
+                      textSize = 13f
+                      gravity = Gravity.CENTER
+                      setTextColor(Color.LTGRAY)
+                      setPadding(12, 24, 12, 12)
+                  }
+
+                  root.addView(title)
+                  root.addView(subtitle)
+                  root.addView(chooseButton)
+                  root.addView(info)
+
+                  setContentView(root)
+              }
+          }
+          KOTLIN
+
+          python3 - <<'PY'
+          import xml.etree.ElementTree as ET
+
+          path = "app/src/main/AndroidManifest.xml"
+
+          android = "http://schemas.android.com/apk/res/android"
+          tools = "http://schemas.android.com/tools"
+
+          ET.register_namespace("android", android)
+          ET.register_namespace("tools", tools)
+
+          tree = ET.parse(path)
+          root = tree.getroot()
+
+          app = root.find("application")
+          if app is None:
+              raise SystemExit("AndroidManifest: application element not found")
+
+          name = f"{{{android}}}name"
+          exported = f"{{{android}}}exported"
+          theme = f"{{{android}}}theme"
+
+          splash = None
+          for activity in app.findall("activity"):
+              if activity.get(name) == ".BootSplashActivity":
+                  splash = activity
+                  break
+
+          if splash is None:
+              raise SystemExit("BootSplashActivity not found")
+
+          for intent_filter in list(splash.findall("intent-filter")):
+              actions = [
+                  item.get(name)
+                  for item in intent_filter.findall("action")
+              ]
+              if "android.intent.action.MAIN" in actions:
+                  splash.remove(intent_filter)
+
+          for activity in list(app.findall("activity")):
+              if activity.get(name) == ".NexusLauncherActivity":
+                  app.remove(activity)
+
+          launcher = ET.SubElement(app, "activity")
+          launcher.set(name, ".NexusLauncherActivity")
+          launcher.set(exported, "true")
+          launcher.set(theme, "@style/Theme.ARMSX2")
+
+          intent_filter = ET.SubElement(launcher, "intent-filter")
+          ET.SubElement(intent_filter, "action").set(
+              name, "android.intent.action.MAIN"
+          )
+          ET.SubElement(intent_filter, "category").set(
+              name, "android.intent.category.LAUNCHER"
+          )
+          ET.SubElement(intent_filter, "category").set(
+              name, "android.intent.category.GAME"
+          )
+
+          tree.write(path, encoding="utf-8", xml_declaration=True)
+          print("NEXUS LAUNCHER MANIFEST INSTALLED")
+          PY
+
+      - name: Verify Nexus Launcher
+        run: |
+          test -f external/ARMSX2/platforms/android/app/src/main/java/com/armsx2/NexusLauncherActivity.kt
+          grep -q "NexusLauncherActivity" external/ARMSX2/platforms/android/app/src/main/AndroidManifest.xml
+          echo "NEXUS LAUNCHER VERIFIED"
+
+      - name: Build Nexus PS2 Android
         working-directory: external/ARMSX2/platforms/android
         run: |
           chmod +x gradlew
@@ -93,6 +283,6 @@ jobs:
       - name: Upload Nexus APK
         uses: actions/upload-artifact@v4
         with:
-          name: Nexus-PS2-Android-Base
+          name: Nexus-PS2-Android
           path: external/ARMSX2/platforms/android/app/build/outputs/apk/github/debug/*.apk
           

@@ -185,7 +185,7 @@ jobs:
                   }
 
                   val info = TextView(this).apply {
-                      text = "Pilih file BIN game milikmu.\\nBIOS PS2 diperlukan untuk menjalankan game."
+                      text = "Pilih file BIN game milikmu.\nBIOS PS2 diperlukan untuk menjalankan game."
                       textSize = 13f
                       gravity = Gravity.CENTER
                       setTextColor(Color.LTGRAY)
@@ -264,6 +264,51 @@ jobs:
           tree.write(path, encoding="utf-8", xml_declaration=True)
           print("NEXUS LAUNCHER MANIFEST INSTALLED")
           PY
+
+      - name: Apply Nexus UI Branding
+        working-directory: external/ARMSX2/platforms/android
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          onboarding = Path(
+              "app/src/main/java/com/armsx2/ui/onboarding/OnboardingScreen.kt"
+          )
+          home = Path(
+              "app/src/main/java/com/armsx2/ui/home/HomeScreen.kt"
+          )
+
+          a = onboarding.read_text()
+          old_logo = "                        ArmsLogo()"
+          new_logo = """                        Text(
+                              text = "NEXUS PS2 ANDROID",
+                              style = MaterialTheme.typography.titleLarge,
+                              fontWeight = FontWeight.Bold,
+                              color = MaterialTheme.colorScheme.onBackground,
+                          )"""
+
+          if a.count(old_logo) != 1:
+              raise SystemExit("Onboarding source changed; patch stopped.")
+
+          onboarding.write_text(a.replace(old_logo, new_logo, 1))
+
+          h = home.read_text()
+          old_title = '                    title = str("games.section.library"),'
+          new_title = '                    title = "ULTRAMAN NEXUS",'
+
+          if h.count(old_title) != 1:
+              raise SystemExit("Home source changed; patch stopped.")
+
+          home.write_text(h.replace(old_title, new_title, 1))
+
+          print("NEXUS UI BRANDING PATCHED")
+          PY
+
+      - name: Verify Nexus UI Branding
+        run: |
+          grep -q 'NEXUS PS2 ANDROID' external/ARMSX2/platforms/android/app/src/main/java/com/armsx2/ui/onboarding/OnboardingScreen.kt
+          grep -q 'ULTRAMAN NEXUS' external/ARMSX2/platforms/android/app/src/main/java/com/armsx2/ui/home/HomeScreen.kt
+          echo "NEXUS UI BRANDING VERIFIED"
 
       - name: Verify Nexus Launcher
         run: |

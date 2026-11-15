@@ -215,15 +215,10 @@ jobs:
                   }
 
                   root.addView(
-                      text(
-                          "T.L.T.  //  NEXUS SYSTEM",
-                          11f,
-                          Color.rgb(190, 195, 205),
-                          true
-                      ),
+                      text("T.L.T.  //  NEXUS SYSTEM", 11f,
+                          Color.rgb(190, 195, 205), true),
                       LinearLayout.LayoutParams(
-                          LinearLayout.LayoutParams.MATCH_PARENT,
-                          dp(30)
+                          LinearLayout.LayoutParams.MATCH_PARENT, dp(30)
                       )
                   )
 
@@ -258,12 +253,8 @@ jobs:
                   space(root, 8)
 
                   root.addView(
-                      text(
-                          "PLAYSTATION 2  //  ANDROID EDITION",
-                          11f,
-                          Color.rgb(190, 195, 205),
-                          true
-                      ),
+                      text("PLAYSTATION 2  //  ANDROID EDITION",
+                          11f, Color.rgb(190, 195, 205), true),
                       LinearLayout.LayoutParams(
                           LinearLayout.LayoutParams.MATCH_PARENT,
                           LinearLayout.LayoutParams.WRAP_CONTENT
@@ -273,12 +264,8 @@ jobs:
                   space(root, 38)
 
                   root.addView(
-                      text(
-                          "SYSTEM READY",
-                          12f,
-                          Color.rgb(230, 55, 75),
-                          true
-                      ),
+                      text("SYSTEM READY", 12f,
+                          Color.rgb(230, 55, 75), true),
                       LinearLayout.LayoutParams(
                           LinearLayout.LayoutParams.MATCH_PARENT,
                           LinearLayout.LayoutParams.WRAP_CONTENT
@@ -288,10 +275,7 @@ jobs:
                   space(root, 15)
 
                   val playButton = text(
-                      "▶   PLAY GAME",
-                      18f,
-                      Color.WHITE,
-                      true
+                      "▶   PLAY GAME", 18f, Color.WHITE, true
                   ).apply {
                       background = panel(
                           Color.rgb(190, 20, 42),
@@ -329,13 +313,7 @@ jobs:
                   }
 
                   gamePanel.addView(
-                      text(
-                          "GAME LIBRARY",
-                          13f,
-                          Color.WHITE,
-                          true,
-                          Gravity.START
-                      )
+                      text("GAME LIBRARY", 13f, Color.WHITE, true, Gravity.START)
                   )
 
                   space(gamePanel, 8)
@@ -372,13 +350,8 @@ jobs:
                   }
 
                   biosPanel.addView(
-                      text(
-                          "BIOS INFORMATION",
-                          12f,
-                          Color.rgb(220, 220, 230),
-                          true,
-                          Gravity.START
-                      )
+                      text("BIOS INFORMATION", 12f,
+                          Color.rgb(220, 220, 230), true, Gravity.START)
                   )
 
                   space(biosPanel, 7)
@@ -529,42 +502,44 @@ jobs:
           path = Path(
               "app/src/main/java/com/armsx2/runtime/MainActivityRuntime.kt"
           )
-
           source = path.read_text()
 
-          class_anchor = (
-              "open class MainActivityRuntime : ComponentActivity() {\n"
-          )
-
+          class_anchor = "open class MainActivityRuntime : ComponentActivity() {\n"
           if "private var returnToNexusLauncher" not in source:
               if source.count(class_anchor) != 1:
                   raise SystemExit("MainActivityRuntime class anchor not found.")
-
               source = source.replace(
                   class_anchor,
-                  class_anchor
-                  + "    private var returnToNexusLauncher = false\n",
+                  class_anchor + "    private var returnToNexusLauncher = false\n",
                   1
               )
 
           launch_anchor = (
               "    private fun handleExternalLaunchIntent(intent: Intent?) {\n"
-              "        val raw = extractCueToTrack(intent) ?: return\n"
+              "        val raw = extractLaunchUri(intent) ?: return\n"
           )
-
           launch_replacement = (
               "    private fun handleExternalLaunchIntent(intent: Intent?) {\n"
-              "        returnToNexusLauncher = "
-              "intent?.getBooleanExtra("
-              '"com.nexus.ps2android.INTERNAL_LAUNCH", false'
-              ") == true\n"
-              "        val raw = extractCueToTrack(intent) ?: return\n"
+              "        returnToNexusLauncher = intent?.getBooleanExtra("
+              '"com.nexus.ps2android.INTERNAL_LAUNCH", false) == true\n'
+              "        val raw = extractLaunchUri(intent) ?: return\n"
           )
 
           if launch_anchor in source:
-              source = source.replace(
-                  launch_anchor,
-                  launch_replacement,
-                  1
-              )
-          elif "return
+              source = source.replace(launch_anchor, launch_replacement, 1)
+          elif launch_replacement not in source:
+              raise SystemExit("Game launch handler anchor not found.")
+
+          destroy_anchor = (
+              "        runCatching { com.armsx2.bugreport.BugReport.clearCrashMarker() }\n"
+              "        super.onDestroy()\n"
+          )
+          destroy_replacement = (
+              "        runCatching { com.armsx2.bugreport.BugReport.clearCrashMarker() }\n"
+              "        if (returnToNexusLauncher) {\n"
+              "            returnToNexusLauncher = false\n"
+              "            startActivity(\n"
+              "                Intent(this, com.armsx2.NexusLauncherActivity::class.java).apply {\n"
+              "                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)\n"
+              "                }\n"
+              "        
